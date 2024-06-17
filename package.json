@@ -1,0 +1,17 @@
+{
+	"name": "sueca-game",
+	"scripts": {
+		"ancient": "clojure -Sdeps '{:deps {com.github.liquidz/antq {:mvn/version \"RELEASE\"}}}' -m antq.core",
+		"watch": "npx shadow-cljs watch app",
+		"release": "npx shadow-cljs release app",
+		"build-report": "npx shadow-cljs run shadow.cljs.build-report app target/build-report.html"
+	},
+	"dependencies": {
+		"highlight.js": "11.5.1",
+		"react": "^18.2.0",
+		"react-dom": "^18.3.1"
+	},
+	"devDependencies": {
+		"shadow-cljs": "2.26.2"
+	}
+}
