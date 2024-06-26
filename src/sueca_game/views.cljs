@@ -4,40 +4,49 @@
    [sueca-game.subs :as subs]
    [sueca-game.events :as events]))
 
+(defn render-deck
+  [table round turn-end?]
+  (let [cards-by-round ((keyword (str round)) table)]
+    [:div
+     (map (fn [cards] [:div cards]) cards-by-round)
 
+     [:button {:on-click (fn [] (re-frame/dispatch [::events/increment-round round])) :disabled (not turn-end?)} "get cards"]]))
 
-(defn card [player turn]
+(defn render-cards [player turn turn-end?]
 
   (map (fn [value]
          (let [id (:id player)
-               disabled (not (= id (str turn)))]
+               disabled (or (not (= id (str turn)))  turn-end?)]
            [:div
             [:button {:on-click (fn []
-                                  (re-frame/dispatch [::events/select-card value id]))
+                                  (re-frame/dispatch [::events/select-card value]))
                       :disabled  disabled}
              (second value)
              (first value)]]))
        (:hand player)))
 
 
-(defn create-player [player turn]
+(defn add-player [player turn turn-end?]
   [:div {:key (:id player)}
    [:p (str "player " (:id player)) ": " (:name player)]
-   [:span "hand:" (card player turn)]])
+   [:span "hand:" (render-cards player turn turn-end?)]])
 
-(defn create-deck [player-list turn]
-  (map #(create-player % turn) player-list))
+(defn render-players [player-list turn turn-end?]
+  (map #(add-player % turn turn-end?) player-list))
 
 (defn main-panel []
   (let [name (re-frame/subscribe [::subs/name])
         players-cards @(re-frame/subscribe [::subs/players])
-        allcards @(re-frame/subscribe [::subs/allcards])
-        turn @(re-frame/subscribe [::subs/turn])]
+        turn @(re-frame/subscribe [::subs/turn])
+        round @(re-frame/subscribe [::subs/round])
+        table @(re-frame/subscribe [::subs/table])
+        started? @(re-frame/subscribe [::subs/started?])
+        turn-end? @(re-frame/subscribe [::subs/turn-end?])]
     [:div
      [:h1
       "Hello from " @name]
-     [:button  {:on-click (fn [] (re-frame/dispatch [::events/prepare-cards]))} "prepare cards"]
-     [:button  {:on-click (fn [] (re-frame/dispatch [::events/spread-cards])) :disabled (not allcards)} "spread cards"]
+     [:button  {:on-click (fn [] (re-frame/dispatch [::events/start-game 1])) :disabled started?} "start game"]
 
-     [:p allcards]
-     (create-deck players-cards turn)]))
+     [:div "table: " table]
+     (render-deck table round turn-end?)
+     (render-players players-cards turn turn-end?)]))

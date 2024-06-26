@@ -7,12 +7,8 @@
            :suits {:spade "♠"
                    :heart "♥"
                    :diamond "♦"
-                   :club "♣"}
-           :points {:ace 11
-                    :seven 10
-                    :king 4
-                    :jack 3
-                    :queen 2
-                    :none 0}}
-   :turn 1})
+                   :club "♣"}}
+   :round-points []
+   :turn 1
+   :round 1})
 

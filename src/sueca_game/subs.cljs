@@ -13,13 +13,25 @@
    (:players db)))
 
 (re-frame/reg-sub
- ::allcards
- (fn [db]
-   (:allcards db)))
-
-(re-frame/reg-sub
  ::turn
  (fn [db]
    (:turn db)))
+(re-frame/reg-sub
+ ::round
+ (fn [db]
+   (:round db)))
 
+(re-frame/reg-sub
+ ::table
+ (fn [db]
+   (:table db)))
 
+(re-frame/reg-sub
+ ::turn-end?
+ (fn [db]
+   (:turn-end? db)))
+
+(re-frame/reg-sub
+ ::started?
+ (fn [db]
+   (:started? db)))
