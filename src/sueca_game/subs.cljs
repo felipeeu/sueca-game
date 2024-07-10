@@ -27,9 +27,9 @@
    (:table db)))
 
 (re-frame/reg-sub
- ::turn-end?
+ ::round-end?
  (fn [db]
-   (:turn-end? db)))
+   (:round-end? db)))
 
 (re-frame/reg-sub
  ::started?
