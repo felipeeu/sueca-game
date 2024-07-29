@@ -8,7 +8,7 @@
   [table round round-end?]
   (let [cards-by-round ((keyword (str round)) table)]
     [:div
-     (map (fn [cards] [:div cards]) cards-by-round)
+     (map (fn [cards] [:div {:key cards} cards]) cards-by-round)
 
      [:button {:on-click (fn [] (re-frame/dispatch [::events/increment-round round])) :disabled (not round-end?)} "get cards"]]))
 

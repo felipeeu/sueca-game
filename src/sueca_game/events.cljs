@@ -3,7 +3,6 @@
    [re-frame.core :as re-frame]
    [sueca-game.db :as db]))
 
-
 ;---------------------------------------------- Functions ---------------------------------------------------------------------------------------------------
 (def ^:const points-map   {:ace 11
                            :seven 10
@@ -12,12 +11,14 @@
                            :queen 2
                            :none 0})
 
-(defn start-game 
+(defn start-game
   "add a flag to indicate the game was started"
   [db]
-  (assoc db :started? true))
+  (assoc db
+         :started? true
+         :new-round true))
 
-(defn prepare-cards 
+(defn prepare-cards
   "map the useful cards with its suits"
   [db]
   (let [{:keys [values suits]} (:cards db)
@@ -30,9 +31,9 @@
                              suits)) values)]
     (assoc-in db [:allcards] cards)))
 
-(defn spread-cards 
+(defn spread-cards
   "spread cards ramdomically"
-  [db] 
+  [db]
   (let [{:keys [allcards players-quantity]} db
         players  (range players-quantity)
         shuffled-cards (shuffle allcards)
@@ -41,20 +42,29 @@
                             :hand (nth split %)) players)]
     (assoc-in db [:players] spread)))
 
-(defn get-trump 
+(defn get-trump
   "get the trump card to use for 10 rounds"
   [db]
   (let [{:keys [allcards]} db
         trump (rand-nth allcards)]
     (assoc db :trump-card trump)))
 
-(defn set-player-turn 
+(defn is-trump?
+  "check if the suit of a card is trump"
+  [db card]
+
+  (let [{:keys [trump-card]} db
+        suit-trump (first trump-card)
+        suit-card (first card)]
+    (= suit-trump suit-card)))
+
+(defn set-player-turn
   "set the turns to start a game"
   [db player]
   (assoc db :turn player
          :trump-player (+ player 3)))
 
-(defn remove-card 
+(defn remove-card
   "remove the selected card from the hand of the player"
   [db selected-card]
   (let [{:keys [players]} db
@@ -68,7 +78,7 @@
 
     (assoc db :players updated-players)))
 
-(defn inc-turn 
+(defn inc-turn
   "inc the turn to another player start the next turn"
   [db]
   (let [{:keys [turn players-quantity]} db]
@@ -76,65 +86,84 @@
       (assoc db :turn 1 :round-end? true)
       (assoc db :turn (inc turn) :round-end? false))))
 
-(defn select-card 
+(defn add-card-to-table
   "select the card to add table"
   [db selected-card]
-  (let [{:keys [table round]} db
-        cards (update table (keyword (str round)) conj selected-card)]
-    (assoc db :table cards)))
 
-(defn set-round-end 
-"indicate the end of all turns in order to start another round"
+  (let [{:keys [table round new-round turn round-suit]} db
+        updated-table (assoc-in
+                       table [(keyword (str "round" round))
+                              (keyword (str "player" turn))]
+                       selected-card)]
+    (merge db
+           {:table  updated-table
+            :new-round false
+            :round-suit (if new-round (first selected-card) round-suit)})))
+
+(defn set-round-end
+  "indicate the end of all turns in order to start another round"
   [db]
-  (assoc db :round-end? (not (:round-end? db))))
+  (assoc db :round-end? (not (:round-end? db)) :new-round true))
 
-(defn get-trump-suit 
-"get the trump suit that will be used for a entirely round"
-[card-trump]
-  (first card-trump))
+(defn get-cards-list-by-round
+  "get the list of cards in a round "
+  [db round]
+  (let [{:keys [table]} db
+        cards-by-round ((keyword (str "round" round)) table)
+        cards-list (vals cards-by-round)]
+    cards-list))
 
-(defn get-card-point 
-"get the point of the card based on a constant points map"
- [card]
+(defn get-card-point
+  "get the point of the card based on a constant points map"
+  [card]
   ((last card) points-map))
 
-(defn get-card-with-point 
-"get the default card format with its point added"
-[card]
-  (list 
-  (str (first card)) 
-  (str (second card)) 
-  (get-card-point card)))
+(defn get-card-with-point
+  "get the default card format with its point added"
+  [card]
+  (list
+   (str (first card))
+   (str (second card))
+   (get-card-point card)))
 
-(defn get-cards-points 
-"get the sum of points of a collection of cards"
+(defn get-cards-points
+  "get the sum of points of a collection of cards"
   [cards]
   (reduce + (map #(get-card-point %) cards)))
 
-(defn get-round-points 
-"get the points made in a round"
+(defn get-points-by-round
+  "get the points made in a round"
   [db round]
-  (let [{:keys [table round-points]} db
-        cards-by-round ((keyword (str round)) table)
-        points (get-cards-points cards-by-round)
-        pontuation (conj round-points points)]
-    (assoc db :round-points pontuation)))
+  (let [cards-list (get-cards-list-by-round db round)
+        points (get-cards-points cards-list)]
+    points))
 
-(defn get-major-card 
-"get the major value card to check which player win the round"
+(defn get-major-card
+  "get the major value card to check which player win the round"
   [cards]
   (let [card-with-points (->> cards
                               (mapv #(get-card-with-point %)))
         sort-by-points (sort-by last > card-with-points)]
     (first sort-by-points)))
 
-(defn increment-round 
-"increment the round after all player turns"
+(defn get-winner-card-round
+  "get the card which wins the round"
+  [db round]
+  (let [{:keys [round-suit]} db
+        cards-list (get-cards-list-by-round db round)
+        trump-cards (filter #(is-trump? db %) cards-list)
+        round-suit-cards (filter #(round-suit (first %)) cards-list)]
+    (if (empty? trump-cards)
+      (get-major-card round-suit-cards)
+      (get-major-card trump-cards))))
+
+(defn increment-round
+  "increment the round after all player turns"
   [db]
   (update db :round inc))
 
-(defn pair-players 
-"sort the players that will be pairs for all game"
+(defn pair-players
+  "sort the players that will be pairs for all game"
   [db]
   (let [{:keys [players-quantity]} db
         players (map inc (range players-quantity))
@@ -163,17 +192,16 @@
 
 (re-frame/reg-event-fx
  ::increment-round
- (fn [{:keys [db]} [_ round]]
+ (fn [{:keys [db]} [_ _]]
    {:db (-> db
             increment-round
-            set-round-end
-            (get-round-points round))}))
+            set-round-end)}))
 
 (re-frame/reg-event-fx
  ::select-card
  (fn [{:keys [db]} [_ selected-card]]
    {:db (-> db
-            (select-card selected-card)
+            (add-card-to-table selected-card)
             (remove-card selected-card)
             inc-turn)}))
 

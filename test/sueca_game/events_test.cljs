@@ -1,44 +1,69 @@
 (ns sueca-game.events-test
-  (:require [cljs.test :refer (deftest is testing)]
+  (:require [cljs.test :refer (deftest is are testing)]
             [sueca-game.events  :as events]))
 
 
 (deftest start-game-test
   (testing "start-game function"
     (let [initial-db {}
-          expected-db {:started? true}
+          expected-db {:started? true :new-round true}
           new-db (events/start-game initial-db)]
       (is (= expected-db new-db))))
 
   (testing "start-game with existing data"
     (let [initial-db {:players ["Alice" "Bob"]}
-          expected-db {:started? true :players ["Alice" "Bob"]}
+          expected-db {:started? true :players ["Alice" "Bob"] :new-round true}
           new-db (events/start-game initial-db)]
       (is (= expected-db new-db))))
 
   (testing "start-game when already started"
     (let [initial-db {:started? true}
-          expected-db {:started? true}
+          expected-db {:started? true :new-round true}
           new-db (events/start-game initial-db)]
       (is (= expected-db new-db)))))
 
+(let [initial-db {:table
+                  {:round1 {:player1 '("♦" "Q" :queen)
+                            :player2 '("♦" "5" :none)
+                            :player3 '("♦" "2" :none)
+                            :player4 '("♦" "6" :none)}
 
-(deftest get-round-points-test
-  (testing "get round points function"
-    (let [initial-db {}
-          round 1
-          expected-db {:round-points '(0)}
-          new-db (events/get-round-points initial-db round)]
+                   :round2 {:player1 '("♦" "3" :none)
+                            :player2 '("♦" "A" :ace)
+                            :player3 '("♦" "7" :seven)
+                            :player4 '("♦" "4" :none)}}
+                  :round-points []
+                  :turn 1
+                  :round 2
+                  :trump-card '("♦" "K" :king)
+                  :new-round false
+                  :round-suit "♣"}
+      round1 1
+      round2 2
+      round1-points 2
+      points 21
+      cards-round2 '(("♦" "3" :none) ("♦" "A" :ace) ("♦" "7" :seven) ("♦" "4" :none))]
 
-      (is (= expected-db
-             new-db)))))
+  (deftest get-points-by-round-test
+    (testing "get points by round function"
+      (is (= round1-points
+             (events/get-points-by-round initial-db round1)))))
 
-(deftest convert-points-test
-  (testing "convert points"
-    (let  [cards '(("♠" "6" :none) ("♦" "Q" :queen) ("♠" "5" :none) ("♣" "2" :none))
-           points 2]
+  (deftest get-cards-points-test
+    (testing "convert points"
+      (is (= points (events/get-cards-points cards-round2)))))
 
-      (is (= points (events/get-cards-points cards))))))
+
+  (deftest get-cards-list-by-round-test
+    (testing "Context of the test assertions"
+      (is (= cards-round2 (events/get-cards-list-by-round initial-db round2)))))
+
+
+  (deftest get-winner-card-round-test
+    (testing "Context of the test assertions"
+      (is (= '("♦" "Q" 2) (events/get-winner-card-round initial-db 1))))))
+
+
 
 (deftest get-card-point-test
   (testing "test ace card "
@@ -53,11 +78,7 @@
           expected-value 0]
       (is (= calculated-value expected-value)))))
 
-(deftest get-trump-suit-test
-  (testing "test trump suit"
-    (let [trump-card '("♦" "7" :seven)
-          received-suit (events/get-trump-suit trump-card)
-          expected-suit "♦"] (is (= received-suit expected-suit)))))
+
 
 (deftest get-major-card-test
   (testing "major card"
@@ -73,3 +94,37 @@
           expected-card '("♦" "A" 11)
           receive-card (events/get-card-with-point card)]
       (is (= expected-card receive-card)))))
+
+
+
+(deftest is-trump-test
+  (testing "is suit trump test"
+    (let [initial-db  {:trump-card '("♣" "A" :ace)}
+          card-1 '("♥" "A" :ace)
+          card-2 '("♣" "6" :none)
+          card-3 '("♣" "Q" :queen)
+          card-4 '("♠" "3" :none)
+          card-5 '("♦" "7" :seven)
+          is-trump?  events/is-trump?]
+      (do
+        ;same suits as trump
+        (are [attr func] (true? (func initial-db attr))
+          card-2 is-trump?
+          card-3 is-trump?)
+        ;no trump suits
+        (are [attr func] (not (true? (func initial-db attr)))
+          card-1  is-trump?
+          card-4  is-trump?
+          card-5 is-trump?)))))
+
+
+(deftest add-card-to-table-test
+  (testing "selected card test"
+    (let [initial-db {:round 1 :table {} :turn 1 :round-suit "♣" :new-round true}
+          selected-card '("♥" "7" :seven)
+          expected-db {:table {:round1 {:player1 '("♥" "7" :seven)}} :turn 1 :round 1 :new-round false :round-suit "♥"}
+          new-db (events/add-card-to-table initial-db selected-card)]
+      (is  (= expected-db new-db)))))
+
+
+;
