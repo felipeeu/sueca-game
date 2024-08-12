@@ -137,8 +137,13 @@
   [cards]
   (let [card-with-points (->> cards
                               (mapv #(get-card-with-point %)))
-        sort-by-points (sort-by last > card-with-points)]
+        no-points? (every? zero? (map #(last %) card-with-points))
+        sort-by-points (if no-points?
+                         (sort-by second > card-with-points)
+                         (sort-by last > card-with-points))]
     (first sort-by-points)))
+
+
 
 
 (defn get-winner-card-round
