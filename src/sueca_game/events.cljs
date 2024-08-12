@@ -1,7 +1,7 @@
 (ns sueca-game.events
-  (:require
-   [re-frame.core :as re-frame]
-   [sueca-game.db :as db]))
+  (:require [clojure.set :refer [map-invert]]
+            [re-frame.core :as re-frame]
+            [sueca-game.db :as db]))
 
 ;---------------------------------------------- Functions ---------------------------------------------------------------------------------------------------
 (def ^:const points-map   {:ace 11
@@ -78,14 +78,6 @@
 
     (assoc db :players updated-players)))
 
-(defn inc-turn
-  "inc the turn to another player start the next turn"
-  [db]
-  (let [{:keys [turn players-quantity]} db]
-    (if (= turn players-quantity)
-      (assoc db :turn 1 :round-end? true)
-      (assoc db :turn (inc turn) :round-end? false))))
-
 (defn add-card-to-table
   "select the card to add table"
   [db selected-card]
@@ -94,16 +86,18 @@
         updated-table (assoc-in
                        table [(keyword (str "round" round))
                               (keyword (str "player" turn))]
-                       selected-card)]
+                       selected-card)
+        suit (if new-round (first selected-card) round-suit)]
     (merge db
            {:table  updated-table
             :new-round false
-            :round-suit (if new-round (first selected-card) round-suit)})))
+            :round-suit suit})))
 
-(defn set-round-end
-  "indicate the end of all turns in order to start another round"
-  [db]
-  (assoc db :round-end? (not (:round-end? db)) :new-round true))
+(defn convert-card
+  "convert card point to key"
+  [card]
+  (let [inverted-map (clojure.set/map-invert points-map)]
+    (list (first card) (second card) (get inverted-map (last card)))))
 
 (defn get-cards-list-by-round
   "get the list of cards in a round "
@@ -146,21 +140,62 @@
         sort-by-points (sort-by last > card-with-points)]
     (first sort-by-points)))
 
+
 (defn get-winner-card-round
   "get the card which wins the round"
   [db round]
+
   (let [{:keys [round-suit]} db
         cards-list (get-cards-list-by-round db round)
         trump-cards (filter #(is-trump? db %) cards-list)
-        round-suit-cards (filter #(round-suit (first %)) cards-list)]
+        round-suit-cards (filter #(= (first %) round-suit) cards-list)]
     (if (empty? trump-cards)
       (get-major-card round-suit-cards)
       (get-major-card trump-cards))))
+
+(defn get-winner-player-round
+  "get the player who wins current round and start the next"
+  [db round]
+  (let [{:keys [table]} db
+        card-map (-> "round"
+                     (str round)
+                     (keyword)
+                     (table))
+        winner-card (convert-card (get-winner-card-round db round))
+        inverted-map (map-invert card-map)]
+    (get inverted-map winner-card)))
+
+(defn set-round-end
+  "indicate the end of all turns in order to start another round"
+  [db]
+  (assoc db
+         :round-end? (not (:round-end? db))
+         :new-round true))
+
+(defn convert-player-to-turn
+  "convert keyword of player to turn number"
+  [player]
+  (let [player-word-length 6
+        player-number (subs (name player) player-word-length)]
+    (js/parseInt player-number)))
 
 (defn increment-round
   "increment the round after all player turns"
   [db]
   (update db :round inc))
+
+(defn increment-turn
+  "inc the turn to another player start the next turn"
+  [db]
+  (let [{:keys [table turn round players-quantity]} db
+        round-cards (get-in table [(keyword (str "round" round))])
+        number-of-turns (count (keys round-cards))
+        full-round? (true? (= number-of-turns players-quantity))
+        current-turn (if (= players-quantity turn) 0 turn)]
+
+    (if full-round?
+      (assoc db :turn (convert-player-to-turn (get-winner-player-round db round)) :round-end? true)
+      (assoc db :turn (inc current-turn) :round-end? false))))
 
 (defn pair-players
   "sort the players that will be pairs for all game"
@@ -195,7 +230,7 @@
  (fn [{:keys [db]} [_ _]]
    {:db (-> db
             increment-round
-            set-round-end)}))
+            (set-round-end))}))
 
 (re-frame/reg-event-fx
  ::select-card
@@ -203,6 +238,6 @@
    {:db (-> db
             (add-card-to-table selected-card)
             (remove-card selected-card)
-            inc-turn)}))
+            increment-turn)}))
 
 

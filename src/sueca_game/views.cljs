@@ -10,7 +10,7 @@
     [:div
      (map (fn [cards] [:div {:key cards} cards]) cards-by-round)
 
-     [:button {:on-click (fn [] (re-frame/dispatch [::events/increment-round round])) :disabled (not round-end?)} "get cards"]]))
+     [:button {:on-click (fn [] (re-frame/dispatch [::events/increment-round])) :disabled (not round-end?)} "get cards"]]))
 
 (defn render-cards [player turn round-end?]
 
